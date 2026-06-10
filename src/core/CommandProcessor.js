@@ -1,21 +1,9 @@
 /**
- * CommandProcessor.js — Routes parsed RESP commands to Store operations.
- *
- * This is the "dispatcher" layer. It receives a parsed command array
- * like ["SET", "foo", "bar", "EX", "30"] and calls the appropriate
- * Store method with validated arguments.
- *
- * RESPONSIBILITIES:
- *   - Argument count validation
- *   - Type coercion (string "42" → number 42 where needed)
- *   - Error formatting (wrong type, wrong arg count, unknown command)
- *   - Delegating to Store for the actual operation
- *   - Notifying the WAL about write commands (for replication)
- *
- * WHAT IT DOES NOT DO:
- *   - Does not touch the network (that's ClientHandler's job)
- *   - Does not encode responses (caller handles that with RespEncoder)
- *   - Does not manage expiry timers (that's ExpiryManager)
+ * CommandProcessor.js — dispatcher. Takes a parsed command array such as
+ * ["SET", "foo", "bar", "EX", "30"], validates the arguments, calls the matching
+ * Store method, and formats the result (including error cases). Write commands
+ * are also handed to the WAL and replication. It does not touch the socket or
+ * encode responses — that's ClientHandler and the RESP encoder.
  */
 
 class CommandProcessor {

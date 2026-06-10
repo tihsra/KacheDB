@@ -1,64 +1,20 @@
 /**
- * Replication.js — Leader-Follower replication.
+ * Replication.js — leader-follower replication.
  *
- * WHAT IS REPLICATION?
- *   Replication means running multiple copies of your server where:
- *   - The LEADER accepts all writes and reads
- *   - FOLLOWERS sync from the leader and serve reads
+ * The leader takes all writes; followers sync from it and serve reads. The leader
+ * opens a second TCP port (default leaderPort + 1000). When a follower connects it
+ * receives a full snapshot, then every subsequent write streamed in real time. A
+ * follower that drops re-syncs from scratch on reconnect.
  *
- *   WHY?
- *   1. READ SCALE — spread read load across multiple nodes
- *   2. FAULT TOLERANCE — if the leader crashes, a follower can take over
- *   3. LOW LATENCY — followers can be geographically closer to some clients
+ * Wire format (newline-delimited JSON, not RESP):
+ *   leader -> follower: { type: "snapshot", data, expiry }
+ *                       { type: "command", args: [...] }
+ *                       { type: "ping" }
+ *   follower -> leader: { type: "ready" } / { type: "pong" }
  *
- * HOW IT WORKS HERE:
- *
- *   Leader side:
- *   - Opens a second TCP port (default: leaderPort + 1000) for followers
- *   - When a follower connects:
- *     a. Send a full snapshot of the current store state
- *     b. From that point on, stream every write command in real time
- *   - Maintains a list of connected followers
- *
- *   Follower side:
- *   - Connects to the leader's replication port
- *   - Receives the initial snapshot → loads it into local store
- *   - Receives streamed commands → applies them to local store
- *   - If disconnected → reconnects and re-syncs from scratch
- *
- * REPLICATION PROTOCOL (our custom format, not RESP):
- *   We use newline-delimited JSON over a persistent TCP connection.
- *
- *   Leader → Follower messages:
- *   { "type": "snapshot", "data": <store JSON>, "expiry": <expiry JSON> }
- *   { "type": "command",  "args": ["SET", "foo", "bar"] }
- *   { "type": "ping" }   (keepalive every 10s)
- *
- *   Follower → Leader messages:
- *   { "type": "ready" }  (after snapshot is applied)
- *   { "type": "pong" }
- *
- * CONSISTENCY MODEL:
- *   This is ASYNCHRONOUS replication — the leader does not wait for
- *   followers to acknowledge before returning OK to the client.
- *   This means followers can lag behind (replication lag).
- *   Advantage: low write latency on the leader.
- *   Risk: if the leader crashes, the most recent writes may not have
- *   reached all followers yet → potential data loss of milliseconds.
- *   Redis uses the same model by default.
- *
- *   SYNCHRONOUS replication (like PostgreSQL's synchronous_commit) waits
- *   for at least one follower to acknowledge before returning OK.
- *   Safer but slower. Worth knowing the tradeoff for interviews.
- *
- * REPLICATION OFFSET:
- *   Each leader command is assigned an incrementing offset number.
- *   Followers track which offset they're at. If a follower reconnects
- *   after a brief disconnect, it can ask the leader for commands after
- *   its last known offset (PARTIAL RESYNC). If it's been disconnected
- *   too long and the leader doesn't have those commands in memory,
- *   it does a FULL RESYNC (send full snapshot again).
- *   Our implementation always does full resync for simplicity.
+ * Replication is asynchronous: the leader returns OK to the client before
+ * followers apply the write, so followers can lag and a leader crash can lose the
+ * most recent writes. Each command carries an incrementing offset for tracking.
  */
 
 const net  = require('net');

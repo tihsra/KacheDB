@@ -1,46 +1,27 @@
 /**
- * RespParser.js — Redis Serialization Protocol (RESP) Parser.
+ * RespParser.js — parser/encoder for RESP, the Redis wire protocol.
  *
- * RESP is the wire protocol Redis uses. It's a text-based protocol
- * designed to be simple to parse and human-readable enough to debug
- * with netcat. Every Redis client in every language speaks RESP.
+ * Types:
+ *   +OK\r\n           simple string
+ *   -ERR message\r\n  error
+ *   :42\r\n           integer
+ *   $6\r\nfoobar\r\n  bulk string ($-1 = null)
+ *   *3\r\n...         array of bulk strings, e.g. ["SET","foo","bar"]
+ * Inline commands (space-separated, no * prefix) are also accepted:
+ *   SET foo bar\r\n  ->  ["SET", "foo", "bar"]
  *
- * WHY NOT HTTP?
- *   HTTP has huge overhead — headers, method lines, status codes,
- *   content-type negotiation. For a key-value store doing millions
- *   of operations per second, that overhead is unacceptable.
- *   RESP is minimal: a type byte, a length, a \r\n, the data, another \r\n.
- *   Parsing is O(n) in message length with no backtracking.
- *
- * RESP DATA TYPES:
- *   +OK\r\n               → Simple string  (server → client, for "OK" etc.)
- *   -ERR message\r\n      → Error          (server → client)
- *   :42\r\n               → Integer        (server → client)
- *   $6\r\nfoobar\r\n      → Bulk string    (both directions, binary-safe)
- *   $-1\r\n               → Null bulk string (nil)
- *   *3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n  → Array of 3 bulk strings
- *
- * INLINE COMMANDS (for human use with telnet/netcat):
- *   SET foo bar\r\n       → parsed as ["SET", "foo", "bar"]
- *   These don't use the * prefix, just space-separated words.
- *
- * PARTIAL READS — The Hard Part:
- *   TCP is a stream protocol. One send() call on the client side does NOT
- *   guarantee one recv() call on the server side. The data may arrive in
- *   chunks. We handle this by buffering incoming bytes and only consuming
- *   a message when we've confirmed it's complete.
- *
- *   Example of a partial read:
- *     Chunk 1: "*2\r\n$3\r\n"
- *     Chunk 2: "GET\r\n$4\r\nname\r\n"
- *   The parser buffers chunk 1, receives chunk 2, and only then parses
- *   the complete message.
+ * TCP is a stream, so one client write may arrive in several chunks. The parser
+ * buffers incoming bytes and only consumes a message once it is complete.
  */
 
 class RespParser {
   constructor() {
-    // Raw bytes buffer. We accumulate here until we have a complete message.
-    this._buffer = '';
+    // Raw BYTES buffer. We accumulate here until we have a complete message.
+    // CRITICAL: this must be a Buffer, not a string. RESP $<length> prefixes
+    // are BYTE counts, and TCP chunks can split a multibyte UTF-8 character.
+    // Slicing a string by character index against a byte length silently
+    // corrupts any non-ASCII value and desynchronizes the connection.
+    this._buffer = Buffer.alloc(0);
   }
 
   // ─── Public API ─────────────────────────────────────────────────────────────
@@ -56,7 +37,10 @@ class RespParser {
    *                              an array of strings e.g. ["SET", "foo", "bar"]
    */
   feed(data) {
-    this._buffer += data.toString();
+    // Append raw bytes. Buffer.concat preserves byte boundaries even when a
+    // multibyte character is split across two TCP chunks.
+    const incoming = Buffer.isBuffer(data) ? data : Buffer.from(data, 'utf8');
+    this._buffer = Buffer.concat([this._buffer, incoming]);
     const commands = [];
 
     // Keep parsing as long as there's a complete message in the buffer
@@ -73,7 +57,7 @@ class RespParser {
    * Reset the buffer. Call this if the connection is closed or on error.
    */
   reset() {
-    this._buffer = '';
+    this._buffer = Buffer.alloc(0);
   }
 
   // ─── Parsing ─────────────────────────────────────────────────────────────────
@@ -86,9 +70,9 @@ class RespParser {
   _tryParse() {
     if (this._buffer.length === 0) return null;
 
-    const firstByte = this._buffer[0];
+    const firstByte = this._buffer[0]; // a byte value (number), not a char
 
-    if (firstByte === '*') {
+    if (firstByte === 0x2a /* '*' */) {
       // Array type — this is the standard client → server format
       return this._parseArray();
     } else {
@@ -114,7 +98,7 @@ class RespParser {
     const crlfIdx = this._buffer.indexOf('\r\n');
     if (crlfIdx === -1) return null; // incomplete
 
-    const countStr = this._buffer.slice(1, crlfIdx); // skip the '*'
+    const countStr = this._buffer.toString('latin1', 1, crlfIdx); // skip the '*'
     const count    = parseInt(countStr, 10);
 
     if (isNaN(count)) {
@@ -155,7 +139,7 @@ class RespParser {
   _parseBulkAt(pos) {
     if (pos >= this._buffer.length) return null;
 
-    if (this._buffer[pos] !== '$') {
+    if (this._buffer[pos] !== 0x24 /* '$' */) {
       // Not a bulk string — something is wrong
       return null;
     }
@@ -163,7 +147,7 @@ class RespParser {
     const crlfIdx = this._buffer.indexOf('\r\n', pos);
     if (crlfIdx === -1) return null; // incomplete
 
-    const lengthStr = this._buffer.slice(pos + 1, crlfIdx);
+    const lengthStr = this._buffer.toString('latin1', pos + 1, crlfIdx);
     const length    = parseInt(lengthStr, 10);
 
     if (isNaN(length)) return null;
@@ -173,14 +157,16 @@ class RespParser {
       return { value: null, nextPos: crlfIdx + 2 };
     }
 
-    // The data starts after the $<length>\r\n line
+    // The data starts after the $<length>\r\n line. `length` is a BYTE count,
+    // and dataStart/dataEnd are byte offsets into the Buffer — they align.
     const dataStart = crlfIdx + 2;
     const dataEnd   = dataStart + length;
 
     // Do we have enough bytes?
     if (this._buffer.length < dataEnd + 2) return null; // +2 for trailing \r\n
 
-    const value = this._buffer.slice(dataStart, dataEnd);
+    // Decode exactly `length` bytes as UTF-8 — binary-safe for any value.
+    const value = this._buffer.toString('utf8', dataStart, dataEnd);
 
     // Consume the trailing \r\n after the data
     return { value, nextPos: dataEnd + 2 };
@@ -204,7 +190,8 @@ class RespParser {
     }
     if (lineEnd === -1) return null; // incomplete
 
-    const line = this._buffer.slice(0, lineEnd).trim();
+    // Decode the line bytes as UTF-8, then consume them (byte offset).
+    const line = this._buffer.toString('utf8', 0, lineEnd).trim();
     this._buffer = this._buffer.slice(lineEnd + advance);
 
     if (line.length === 0) return null; // blank line — skip

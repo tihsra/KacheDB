@@ -1,34 +1,15 @@
 /**
- * Server.js — Main entry point. Wires all subsystems together.
+ * Server.js — entry point. Wires the subsystems together and starts the TCP
+ * server (plus a WebSocket server for the dashboard).
  *
- * STARTUP SEQUENCE:
- *   1. Parse CLI flags (--port, --role, --leader-port etc.)
- *   2. Create Store, ExpiryManager, WAL, Snapshot, CommandProcessor
- *   3. Load latest snapshot from disk
- *   4. Replay WAL entries after the snapshot
- *   5. Start ExpiryManager background sweeper
- *   6. Start Snapshot auto-save timer
- *   7. If leader: open replication port
- *   8. If follower: connect to leader's replication port
- *   9. Start TCP server for client connections
- *  10. Start WebSocket server for the React dashboard
+ * Startup: parse flags, build Store/WAL/Snapshot/ExpiryManager/CommandProcessor,
+ * load the latest snapshot, replay the WAL written after it, start the expiry
+ * sweep and snapshot timer, set up replication (leader opens a port, follower
+ * connects), then accept clients. Shutdown takes a final snapshot and flushes
+ * the WAL.
  *
- * SHUTDOWN SEQUENCE (SIGINT / SIGTERM):
- *   1. Stop accepting new connections
- *   2. Wait for in-flight requests to finish (max 5s)
- *   3. Take a final snapshot
- *   4. Flush and close WAL
- *   5. Stop ExpiryManager
- *   6. Exit
- *
- * CLI FLAGS:
- *   --port        6379      TCP port for client connections
- *   --data-dir    ./data    Where to store WAL and snapshots
- *   --role        standalone | leader | follower
- *   --leader-host 127.0.0.1 Leader hostname (follower only)
- *   --leader-port 6379      Leader's client port (follower only)
- *   --repl-port   7379      Port for follower connections (leader only)
- *   --stats-port  8379      WebSocket port for React dashboard
+ * Flags: --port (6379), --data-dir (./data), --role standalone|leader|follower,
+ * --leader-host, --leader-port, --repl-port (7379), --stats-port (8379).
  */
 
 'use strict';

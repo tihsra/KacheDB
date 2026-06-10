@@ -1,39 +1,15 @@
 /**
- * Snapshot.js — Periodic full-store dump to disk.
+ * Snapshot.js — periodic full dump of the store to disk.
  *
- * WHAT IS A SNAPSHOT?
- *   A snapshot (Redis calls it an RDB file) is a complete serialization
- *   of the in-memory store at a point in time. It contains every key,
- *   every value, and every expiry timestamp.
+ * A snapshot is the whole store (keys, values, expiry) serialized to JSON, taken
+ * every few minutes. On restart the newest snapshot is loaded and only the WAL
+ * entries written after it are replayed, which keeps startup fast no matter how
+ * long the server has run.
  *
- * WHY SNAPSHOT + WAL INSTEAD OF JUST WAL?
- *   Imagine your server has been running for a week with 10 million writes.
- *   The WAL has 10 million entries. On restart, replaying them takes minutes.
- *   Instead: take a snapshot every N minutes. On restart:
- *     1. Load snapshot (milliseconds — just read a file)
- *     2. Replay only WAL entries written AFTER the snapshot
- *   This bounds startup time regardless of how long the server has run.
+ * Format: { version, timestamp, walOffset, data, expiry }.
  *
- * SNAPSHOT FORMAT:
- *   JSON file containing:
- *   {
- *     "version"   : 1,
- *     "timestamp" : 1700000000000,   // when the snapshot was taken
- *     "walOffset" : 4096,            // WAL byte offset at snapshot time
- *     "data"      : { key: value },  // all key-value pairs
- *     "expiry"    : { key: ms }      // all expiry timestamps
- *   }
- *
- * ATOMIC WRITES:
- *   We write to a temp file first, then rename it to the target.
- *   rename() is atomic on POSIX systems — the reader always sees either
- *   the old complete file or the new complete file, never a partial write.
- *   This is critical: if we crashed mid-write without atomicity, we'd have
- *   a corrupt snapshot and no way to restore.
- *
- * RETENTION:
- *   We keep the last 3 snapshots. Older ones are deleted automatically.
- *   In production you'd keep more and replicate them offsite (S3 etc).
+ * Writes go to a temp file and are then renamed into place. rename() is atomic on
+ * POSIX, so a crash mid-write can't leave a corrupt snapshot. The last 3 are kept.
  */
 
 const fs   = require('fs');
@@ -100,7 +76,13 @@ class Snapshot {
   save() {
     const startMs     = Date.now();
     const storeData   = this._store.toJSON();
-    const walOffset   = this._wal ? this._wal.currentOffset() : 0;
+    // INVARIANT: this snapshot reflects every write up to NOW, and below we
+    // truncate the WAL to zero. So on restart the WAL contains ONLY writes that
+    // happened after this snapshot, starting at byte 0. The stored offset must
+    // therefore be 0 — NOT currentOffset(). Storing the pre-truncate size here
+    // was a data-loss bug: replay(size) skipped the first `size` bytes of the
+    // freshly-truncated WAL, silently discarding all post-snapshot writes.
+    const walOffset = 0;
 
     const snapshot = {
       version   : SNAPSHOT_VERSION,
@@ -119,7 +101,8 @@ class Snapshot {
     // Atomic rename — this is the commit point
     fs.renameSync(tempPath, finalPath);
 
-    // Truncate the WAL — entries up to walOffset are now in the snapshot
+    // Truncate the WAL. Everything it contained is now durably in the snapshot,
+    // so the WAL restarts empty and future writes are the only thing in it.
     if (this._wal) {
       this._wal.truncate();
     }

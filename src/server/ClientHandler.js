@@ -1,29 +1,9 @@
 /**
- * ClientHandler.js — Manages a single connected client.
- *
- * One ClientHandler is created per TCP connection. It:
- *   1. Receives raw bytes from the socket
- *   2. Feeds them into the RespParser (handles partial reads)
- *   3. For each complete command, calls CommandProcessor
- *   4. Encodes the result with RespEncoder
- *   5. Writes the encoded response back to the socket
- *
- * CONCURRENCY MODEL:
- *   Node.js is single-threaded with an event loop. When a client sends
- *   data, Node.js fires the 'data' event on the socket. The handler runs
- *   synchronously to completion, then control returns to the event loop.
- *   This means:
- *   - No two handlers run concurrently (no race conditions on the store)
- *   - A slow command would block all other clients
- *   For a key-value store where all commands are O(1) or O(n) with small n,
- *   this is fine. For heavy operations (SORT, SCAN with huge datasets),
- *   you'd need to yield to the event loop periodically.
- *
- * PIPELINING:
- *   RESP supports pipelining — a client can send multiple commands without
- *   waiting for responses. The RespParser handles this: one 'data' event
- *   may contain multiple complete commands. We process them all and send
- *   all responses in one write (better for network efficiency).
+ * ClientHandler.js — one instance per TCP connection. Reads bytes from the
+ * socket, feeds them to the RespParser (which handles partial reads), runs each
+ * complete command through the CommandProcessor, encodes the result, and writes
+ * it back. Pipelined commands that arrive in one packet are processed together
+ * and their responses sent in a single write.
  */
 
 const { RespParser, RespEncoder } = require('../protocol/RespParser');

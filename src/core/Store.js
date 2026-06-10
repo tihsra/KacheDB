@@ -1,19 +1,8 @@
 /**
- * Store.js — The heart of mini-redis.
- *
- * Wraps a plain JavaScript Map (O(1) average for get/set/delete).
- * Keeps a parallel Map for TTL expiry timestamps.
- *
- * WHY A MAP AND NOT AN OBJECT?
- *   - Map preserves insertion order (useful for KEYS command)
- *   - Map has no prototype pollution risk ("__proto__", "constructor" etc
- *     are valid keys in a Map, they are NOT safe as object properties)
- *   - Map.size is O(1); Object.keys(obj).length is O(n)
- *
- * THREAD SAFETY NOTE:
- *   Node.js is single-threaded, so we don't need locks around the Map.
- *   If you ever move this to worker_threads with shared memory you would
- *   need to revisit this. For now: event-loop concurrency = safe.
+ * Store.js — the key-value store. A Map holds the data, with a parallel Map of
+ * expiry timestamps; get/set/delete are O(1) on average. A Map is used over a
+ * plain object to keep insertion order (for KEYS), avoid prototype-key issues,
+ * and get O(1) size. No locks are needed since handlers run single-threaded.
  */
 
 class Store {

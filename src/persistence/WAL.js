@@ -1,49 +1,18 @@
 /**
  * WAL.js — Write-Ahead Log.
  *
- * WHAT IS A WAL?
- *   A Write-Ahead Log (WAL) is an append-only file on disk. Before any
- *   write command is applied to the in-memory store, it is first written
- *   to the WAL file. If the server crashes:
+ * An append-only file on disk. Each write command is appended and the file is
+ * fsync'd once a second, so writes survive a restart. On crash recovery the
+ * latest snapshot is loaded and the WAL entries written after it are replayed.
+ * Append-only keeps writes sequential and means a crash mid-append only leaves a
+ * partial last line, which is detected and skipped during replay.
  *
- *     1. Load the latest snapshot (fast full restore)
- *     2. Replay WAL entries written after that snapshot
- *     3. The store is back to exactly the state before the crash
+ * Format: one JSON array per line, e.g.
+ *   ["SET","user:1","Alice"]
+ *   ["EXPIRE","user:1","3600"]
  *
- *   This guarantees DURABILITY — the D in ACID.
- *
- * WHY APPEND-ONLY?
- *   Appending to a file is the fastest possible disk write — no seeking,
- *   no overwriting. It also means the WAL is always in a consistent state:
- *   if we crash mid-append, we get a partial last line which we detect
- *   and skip during replay.
- *
- * WAL vs SNAPSHOT:
- *   Snapshot: entire store state in one file. Fast to restore but:
- *     - Takes O(n) time and memory to create
- *     - Any writes after the last snapshot are lost on crash
- *   WAL: individual commands, one per line. Problems:
- *     - Replaying 10 million commands on startup is slow
- *   Solution: use BOTH. Snapshot gives fast baseline; WAL fills the gap.
- *
- * FILE FORMAT:
- *   One JSON array per line. Example:
- *     ["SET","user:1","Alice"]
- *     ["EXPIRE","user:1","3600"]
- *     ["DEL","user:2"]
- *   JSON is human-readable and trivially parseable. Redis uses a binary
- *   format (RDB) for the snapshot and a text format (AOF) for the log.
- *   We use JSON for both — simpler to understand.
- *
- * FSYNC BEHAVIOUR:
- *   We use { flag: 'a' } (append mode). Node.js buffers writes in the OS
- *   page cache. A crash of the Node process is fine — the OS will flush.
- *   A power failure before fsync() could lose recent entries.
- *   Redis offers three durability modes:
- *     always  — fsync after every write (safest, slowest)
- *     everysec — fsync once per second (good balance)
- *     no      — let the OS decide (fastest, risky)
- *   We implement "everysec" via a periodic fsync timer.
+ * fsync runs on a timer (the "everysec" mode), so a power loss can drop at most
+ * the last second of writes. After a snapshot the log is truncated.
  */
 
 const fs   = require('fs');
@@ -154,8 +123,12 @@ class WAL {
       return [];
     }
 
-    const content = fs.readFileSync(this._filePath, 'utf8');
-    const lines   = content.slice(afterOffset).split('\n');
+    // Read raw bytes and slice by BYTE offset, THEN decode as UTF-8. Reading as
+    // a string and slicing by character index would corrupt entries whenever a
+    // prior entry contained a multibyte value (offset is a byte count).
+    const raw     = fs.readFileSync(this._filePath);
+    const content = raw.toString('utf8', afterOffset);
+    const lines   = content.split('\n');
     const entries = [];
 
     for (let i = 0; i < lines.length; i++) {

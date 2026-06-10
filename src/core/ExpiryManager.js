@@ -1,26 +1,8 @@
 /**
- * ExpiryManager.js — Active expiry sweeper.
- *
- * Redis uses TWO expiry strategies working together:
- *
- * 1. LAZY EXPIRY (inside Store.get / Store.exists etc.)
- *    When you read a key, we check if it's expired right then.
- *    Cost: O(1) per read. Problem: keys that are never read again
- *    sit in memory forever even after they expire.
- *
- * 2. ACTIVE EXPIRY (this file)
- *    A background loop runs every SWEEP_INTERVAL_MS milliseconds.
- *    It scans the expiry map and deletes any keys that have passed
- *    their expiry time. This bounds memory usage for keys that are
- *    written but never read again.
- *
- * LEARNING POINT — Why not just sweep all keys every time?
- *   If you have 10 million keys, sweeping all of them every 100ms
- *   would block the event loop. Redis solves this by sampling:
- *   pick 20 random keys from the expiry set, delete the expired ones,
- *   if >25% were expired do it again immediately (probabilistic sweep).
- *   Our implementation does a full sweep since we're not at that scale,
- *   but the real Redis approach is worth knowing for interviews.
+ * ExpiryManager.js — active expiry. Keys are also expired lazily on read inside
+ * Store; this background loop runs every SWEEP_INTERVAL_MS and removes any keys
+ * past their expiry, so keys that are written but never read again don't sit in
+ * memory forever. It does a full sweep of the expiry map (fine at this scale).
  */
 
 const SWEEP_INTERVAL_MS = 100; // sweep every 100ms — same as Redis default
