@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "timestamp": 1783005405049,
+  "walOffset": 0,
+  "data": {
+    "key": "10",
+    "Key": "2",
+    "city": "Delhi",
+    "age": "21",
+    "score": "99",
+    "A": "ALLA",
+    "B": "2",
+    "AKSHDO": "AIOIWNOI",
+    "AOFOIABWOEFBIOQWUEBFOIUQBWEFIOUBWEIOUFBWIOUEFOQIWUEFOIUWOEIUFQIUOWEBFQWIUEFEF": "QWE",
+    "user:name": "Alice",
+    "session:abc": "token123"
+  },
+  "expiry": {
+    "session:abc": 1783005465012
+  }
+}

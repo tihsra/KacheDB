@@ -1,0 +1,17 @@
+{
+  "name": "kachedb",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A Redis-style in-memory key-value store built from scratch in Node.js",
+  "scripts": {
+    "start": "node src/server/Server.js",
+    "leader": "node src/server/Server.js --port 6379 --role leader --repl-port 7379",
+    "follower": "node src/server/Server.js --port 6380 --role follower --leader-port 6379",
+    "cli": "node cli/client.js",
+    "test": "node tests/run_tests.js",
+    "benchmark": "node benchmarks/run_benchmark.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}

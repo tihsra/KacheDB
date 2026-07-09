@@ -72,7 +72,7 @@ class RespParser {
 
     const firstByte = this._buffer[0]; // a byte value (number), not a char
 
-    if (firstByte === 0x2a /* '*' */) {
+    if (firstByte === 0x2a /* '*' cannot compare directly with "*" ,as with == it does Number("*") is NaN*/) {
       // Array type — this is the standard client → server format
       return this._parseArray();
     } else {
@@ -95,7 +95,7 @@ class RespParser {
    */
   _parseArray() {
     // Find the end of the first line
-    const crlfIdx = this._buffer.indexOf('\r\n');
+    const crlfIdx = this._buffer.indexOf('\r\n'); // carriage return line feed
     if (crlfIdx === -1) return null; // incomplete
 
     const countStr = this._buffer.toString('latin1', 1, crlfIdx); // skip the '*'
@@ -177,8 +177,6 @@ class RespParser {
    *
    * Example: "GET foo\r\n" → ["GET", "foo"]
    *
-   * Inline commands don't support binary data (no length prefix) but they're
-   * human-friendly for testing with telnet.
    */
   _parseInline() {
     // Look for \r\n or just \n (some clients only send \n)
@@ -190,7 +188,7 @@ class RespParser {
     }
     if (lineEnd === -1) return null; // incomplete
 
-    // Decode the line bytes as UTF-8, then consume them (byte offset).
+    // Decode the line bytes as UTF-8, then consume them.
     const line = this._buffer.toString('utf8', 0, lineEnd).trim();
     this._buffer = this._buffer.slice(lineEnd + advance);
 
