@@ -91,7 +91,6 @@ class CommandProcessor {
 
     // If it's a write command and succeeded, log to WAL and notify replicas
     if (!(result instanceof Error) && this._writeCommands.has(name) && !fromReplication) {
-      const raw = args.join(' ');
       if (this._wal) {
         this._wal.append(args);
       }
