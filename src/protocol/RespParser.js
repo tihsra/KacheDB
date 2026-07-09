@@ -1,6 +1,7 @@
 /**
  * RespParser.js — parser/encoder for RESP, the Redis wire protocol.
- *
+ * handes client request and client responese decoding and encoding
+ * 
  * Types:
  *   +OK\r\n           simple string
  *   -ERR message\r\n  error
@@ -32,10 +33,10 @@ class RespParser {
    * May return [] if the data is incomplete (need more bytes).
    * May return multiple commands if the buffer contained more than one.
    *
-   * @param {string|Buffer} data — incoming TCP chunk
-   * @returns {Array<string[]>} — array of parsed commands, each command is
-   *                              an array of strings e.g. ["SET", "foo", "bar"]
+   *  incoming TCP chunk can be Buffer or string
+   *  returns always array of strings 
    */
+
   feed(data) {
     // Append raw bytes. Buffer.concat preserves byte boundaries even when a
     // multibyte character is split across two TCP chunks.

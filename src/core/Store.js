@@ -332,9 +332,9 @@ class Store {
    */
   _globToRegex(pattern) {
     const escaped = pattern
-      .replace(/[.+^${}()|\\]/g, '\\$&')  // escape regex special chars
-      .replace(/\*/g, '.*')                // * → any chars
-      .replace(/\?/g, '.');               // ? → single char
+      .replace(/[.+^${}()|\\]/g, '\\$&')  // escape regex special chars { our redis we have only two search pattern * and ?  
+      .replace(/\*/g, '.*')                // * → any chars { in regex it should be .* meaning match any character any number of thims }
+      .replace(/\?/g, '.');               // ? → single char { in regex it should be .? meaning match any character any number of thims }
     return new RegExp(`^${escaped}$`);
   }
 
