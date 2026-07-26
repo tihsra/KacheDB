@@ -15,12 +15,13 @@ class ClientHandler {
    * @param {StatsCollector}   stats     — to record metrics
    * @param {Function}         onClose   — called when this client disconnects
    */
+
   constructor(socket, processor, stats, onClose) {
     this._socket    = socket;
     this._processor = processor;
     this._stats     = stats;
     this._onClose   = onClose;
-    this._parser    = new RespParser();
+    this._parser    = new RespParser();  // so that each client has gets data fed into a new buffer and no mix up happen b/w multiple client data
 
     // Unique ID for logging
     this._id = `${socket.remoteAddress}:${socket.remotePort}`;
@@ -37,7 +38,7 @@ class ClientHandler {
     // No Nagle — send small packets immediately (low latency > throughput here)
     this._socket.setNoDelay(true);
 
-    this._socket.on('data', (chunk) => this._onData(chunk));
+    this._socket.on('data', (chunk) => this._onData(chunk)); // event listeners
     this._socket.on('close', ()      => this._onClose(this._id));
     this._socket.on('error', (err)   => this._onError(err));
 
@@ -51,6 +52,7 @@ class ClientHandler {
    * May be called multiple times for one logical message (partial reads).
    * May receive multiple messages in one chunk (pipelining).
    */
+  
   _onData(chunk) {
     // Feed raw bytes into the parser
     // Returns zero or more complete commands

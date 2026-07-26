@@ -163,7 +163,12 @@ async function main() {
   });
 
   // ── 7. Start WebSocket server for React dashboard ────────────────────────
+  
+  // issue is that both follower and main create client dashboard at same port causing 
+  // collision
+  // will resolve later 
 
+  /*
   const wss = new ws.WebSocketServer({ port: cfg.statsPort });
 
   wss.on('connection', (wsClient) => {
@@ -187,6 +192,7 @@ async function main() {
 
   console.log(`[Dashboard] WebSocket on port ${cfg.statsPort}`);
   console.log(`[Dashboard] Open dashboard/index.html in your browser`);
+  */ 
 
   // ── 8. Graceful shutdown ──────────────────────────────────────────────────
 

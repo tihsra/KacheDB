@@ -10,8 +10,6 @@ const SWEEP_INTERVAL_MS = 100; // sweep every 100ms — same as Redis default
 class ExpiryManager {
   /**
    * @param {Store} store — reference to the shared Store instance
-   * @param {WAL}   wal   — optional WAL reference (we don't log expiry sweeps,
-   *                        but we need to know about them for replication)
    */
   constructor(store, onExpire = null) {
     this._store    = store;

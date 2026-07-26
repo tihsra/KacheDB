@@ -41,12 +41,13 @@ class WAL {
     // Ensure parent directory exists
     const dir = path.dirname(this._filePath);
     if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+      // .data/hello/niee/file.js if no data, hello or niee cretaes all, here to prevent errors
+      fs.mkdirSync(dir, { recursive: true }); 
     }
 
     // Open in append mode. Creates the file if it doesn't exist.
     // 'a' flag: position at end, every write appends
-    this._fd = fs.openSync(this._filePath, 'a');
+    this._fd = fs.openSync(this._filePath, 'a'); 
 
     // Start the periodic fsync
     this._syncTimer = setInterval(() => {
