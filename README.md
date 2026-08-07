@@ -14,6 +14,16 @@ TCP server -> command processor -> store (Map)
                     WAL + snapshots, expiry sweeper, replication
 ```
 
+## Disclosure
+
+This project's design was informed by studying Redis's own architecture (RESP
+protocol, WAL + snapshotting, active/lazy expiry, leader-follower replication). The
+core logic — the store, expiry manager, command processor, WAL, snapshotting, and
+replication — was implemented as a first pass by hand, then iterated on and refined
+with AI assistance for edge cases, error handling, and structure. Inline documentation
+(JSDoc) and explanatory comments were generated with AI. The benchmark suite and CLI
+client were generated entirely with AI, based on the existing server/protocol code.
+
 ## Quick start
 
 ```bash
