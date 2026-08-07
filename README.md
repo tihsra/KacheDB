@@ -2,8 +2,7 @@
 
 A Redis-style key-value store written from scratch in Node.js. It speaks the RESP
 protocol over raw TCP, persists with a write-ahead log and periodic snapshots, expires
-keys with TTLs, and supports leader-follower replication. A React dashboard shows live
-stats over a WebSocket.
+keys with TTLs, and supports leader-follower replication.
 
 ```
 client (redis-cli / netcat)
@@ -144,16 +143,6 @@ processor (including NX/XX flags and the WAL/replication callbacks), the WAL, sn
 and a couple of end-to-end pipeline tests (write -> snapshot -> restart -> WAL replay,
 and RESP parse -> process -> RESP encode).
 
-## Dashboard
-
-```bash
-cd dashboard && npm install && npm start
-```
-
-Opens on http://localhost:3000 and connects to the server's WebSocket port (8379). It
-shows ops/sec, key count, hit rate, memory, WAL stats, the expiry sweeper, and a
-replication panel with the follower list and their lag.
-
 ## Benchmarks
 
 ```bash
@@ -184,9 +173,8 @@ src/
   replication/
     Replication.js     leader (streams writes) + follower (applies them)
   stats/
-    StatsCollector.js  metrics for the dashboard
+    StatsCollector.js  metrics
 cli/client.js          interactive client
-dashboard/src/Dashboard.jsx   React stats dashboard
 tests/run_tests.js     70 tests across all subsystems
 benchmarks/run_benchmark.js
 ```
