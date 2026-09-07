@@ -292,20 +292,21 @@ class Store {
    * Restores store from a plain object (loaded from snapshot).
    * Clears existing state first.
    */
-  fromJSON({ data, expiry }) {
-    this._data.clear();
-    this._expiry.clear();
+    fromJSON({data, expiry}){
 
-    for (const [key, val] of Object.entries(data)) {
-      this._data.set(key, val);
+        this._data.clear();
+        this._expiry.clear();
+
+        for(const [key,value] of Object.entries(data)){
+
+            if(expiry[key]===undefined || expiry[key]>Date.now()){
+                this._data.set(key,value);
+                if(expiry[key]!==undefined) this._expiry.set(key,expiry[key]);
+            }
+           
+        }
+
     }
-    for (const [key, ts] of Object.entries(expiry)) {
-      // Only restore if not already expired
-      if (ts > Date.now()) {
-        this._expiry.set(key, ts);
-      }
-    }
-  }
 
   // ─── Stats ──────────────────────────────────────────────────────────────────
 

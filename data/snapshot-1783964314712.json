@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "timestamp": 1783964314712,
-  "walOffset": 0,
-  "data": {
-    "hello": "100"
-  },
-  "expiry": {}
-}
