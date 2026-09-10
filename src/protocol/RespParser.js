@@ -96,7 +96,7 @@ class RespParser {
    */
   _parseArray() {
     // Find the end of the first line
-    const crlfIdx = this._buffer.indexOf('\r\n'); // carriage return line feed
+    const crlfIdx = this._buffer.indexOf('\r\n'); // return index of \r
     if (crlfIdx === -1) return null; // incomplete
 
     const countStr = this._buffer.toString('latin1', 1, crlfIdx); // skip the '*'
