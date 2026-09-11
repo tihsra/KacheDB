@@ -1,0 +1,3 @@
+["set","foo","bar"]
+["mset","bel","10","rel","100","rem"]
+["flushall"]

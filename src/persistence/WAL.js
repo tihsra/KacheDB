@@ -187,7 +187,7 @@ class WAL {
     return {
       filePath   : this._filePath,
       entryCount : this._entryCount,
-      sizeBytes  : this.currentOffset(),
+      sizeBytes  : this.currentOffset(),l
     };
   }
 }

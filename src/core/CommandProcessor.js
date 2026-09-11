@@ -69,34 +69,27 @@ class CommandProcessor {
    */
   process(args, fromReplication = false) {
     this._commandCount++;
-
-    if (!args || args.length === 0) {
-      return new Error('ERR empty command');
-    }
-
-    if (args[0] === '__PARSE_ERROR__') {
-      return new Error(args[1] || 'Parse error');
-    }
+    if (!args || args.length === 0) return new Error('ERR empty command');
+    if (args[0] === '__PARSE_ERROR__') return new Error(args[1] || 'Parse error');
 
     const name    = args[0].toUpperCase();
-    const cmdArgs = args.slice(1); // arguments without the command name
+    const cmdArgs = args.slice(1);
     const handler = this._commands[name];
+    if (!handler) return new Error(`ERR unknown command '${name}'`);
 
-    if (!handler) {
-      return new Error(`ERR unknown command '${name}'`);
+    const isWrite = this._writeCommands.has(name) && !fromReplication;
+
+    // WAL-ahead: log intent BEFORE mutating. Safe even for commands that will
+    // go on to fail validation — replay deterministically re-derives the same
+    // Error and the same "no mutation happened", so a doomed entry is inert.
+    if (isWrite && this._wal) {
+      this._wal.append(args);
     }
 
-    // Execute the command
     const result = handler(cmdArgs);
 
-    // If it's a write command and succeeded, log to WAL and notify replicas
-    if (!(result instanceof Error) && this._writeCommands.has(name) && !fromReplication) {
-      if (this._wal) {
-        this._wal.append(args);
-      }
-      if (this._onWrite) {
-        this._onWrite(args);
-      }
+    if (!(result instanceof Error) && isWrite && this._onWrite) {
+      this._onWrite(args); // still gate replication on success — see below
     }
 
     return result;
