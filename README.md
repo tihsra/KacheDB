@@ -94,6 +94,26 @@ reject writes with `READONLY`. The leader acknowledges the client before followe
 the write, so a follower can lag by a few milliseconds; if the leader crashes the last
 few writes can be lost. A reconnecting follower does a full resync.
 
+## Actual unfixed Issues 
+
+**Issue with Date.now():** Suppose we had a key that had to expire 30 seconds from now,
+`while setting the key the leader died` and hence we had to replay the WAL entry but this
+entry would say TTL to be 30 seconds. Even though some time would probably had passed. 
+Fix could be saving the current time and setting the ttl relative to that.   
+
+**CommandProcessor.js inconsistency**
+The below code is inconsistent 
+```
+if (!(result instanceof Error) && this._writeCommands.has(name) && !fromReplication) {
+  if (this._wal) this._wal.append(args);
+  if (this._onWrite) this._onWrite(args);
+}
+```
+Unable to process failed status other than errors
+For example: If  for `NX` flag in `SET` command the key exists this return `null`
+but this code would append this to `wal` and braodcast to followers.
+This could be prevented to save BW.
+
 ## CLI
 
 ```bash
@@ -178,6 +198,7 @@ cli/client.js          interactive client
 tests/run_tests.js     70 tests across all subsystems
 benchmarks/run_benchmark.js
 ```
+
 
 ## Known limitations
 

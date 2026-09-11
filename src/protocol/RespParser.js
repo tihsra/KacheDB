@@ -85,7 +85,7 @@ class RespParser {
 
   /**
    * Parse a RESP array: *<count>\r\n followed by <count> bulk strings.
-   *
+   *f (this._buffer.length === 0) return null;
    * Example:
    *   *3\r\n
    *   $3\r\nSET\r\n
