@@ -1,8 +1,0 @@
-["set","foo","bar"]
-["mset","bel","10","rel","100","rem"]
-["flushall"]
-["set","foo","bar","bar"]
-["set","foo","bar bar"]
-["set","foo","dildo"]
-["set","foo","ber"]
-["set","foo","bar"]
