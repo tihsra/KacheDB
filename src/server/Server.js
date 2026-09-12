@@ -201,7 +201,7 @@ async function main() {
 
     // Stop accepting new connections
     tcpServer.close();
-    wss.close();
+    //wss.close();
 
     // Destroy existing client connections
     for (const handler of clients.values()) {

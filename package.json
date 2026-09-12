@@ -8,6 +8,7 @@
     "leader": "node src/server/Server.js --port 6379 --role leader --repl-port 7379",
     "follower": "node src/server/Server.js --port 6380 --role follower --leader-port 6379",
     "cli": "node cli/client.js",
+    "cliFollower": "node cli/client.js --port 6380",
     "test": "node tests/run_tests.js",
     "benchmark": "node benchmarks/run_benchmark.js"
   },

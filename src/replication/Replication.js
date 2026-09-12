@@ -188,11 +188,15 @@ class Follower {
     this._offset         = 0;
     this._connected      = false;
     this._reconnectTimer = null;
+    this._isIntentionalDisconnect = false;
   }
 
   // ─── Connect ─────────────────────────────────────────────────────────────────
 
   connect() {
+
+    this._isIntentionalDisconnect = false;
+    
     console.log(`[Follower] Connecting to leader at ${this._leaderHost}:${this._leaderReplPort}`);
 
     this._socket = net.createConnection(this._leaderReplPort, this._leaderHost);
@@ -220,6 +224,9 @@ class Follower {
   }
 
   disconnect() {
+
+    this._isIntentionalDisconnect = true;
+    
     if (this._reconnectTimer) clearTimeout(this._reconnectTimer);
     if (this._socket) this._socket.destroy();
     this._connected = false;
